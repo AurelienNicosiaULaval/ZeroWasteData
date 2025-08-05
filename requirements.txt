@@ -10,3 +10,4 @@ matplotlib
 seaborn
 pytest
 openpyxl>=3.1
+fpdf2

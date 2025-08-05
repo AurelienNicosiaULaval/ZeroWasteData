@@ -12,7 +12,7 @@ from analyses.correlations import pearson_correlations
 from analyses.regressions import simple_linear_regression
 from analyses.stats_descriptives import detect_outliers_iqr
 from analyses.clustering import kmeans_clustering
-from utils.report import generate_report
+from utils.report import generate_report, generate_pdf_report
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 CSV_ANALYSES = DATA_DIR / "table_analyses.csv"
@@ -67,49 +67,84 @@ def main() -> None:
 
         if any(a["analysis"] == "Valeurs aberrantes" for a in remaining):
             st.write("### Valeurs aberrantes")
-            results = {}
-            for col in df.select_dtypes(include="number").columns:
-                mask = detect_outliers_iqr(df, col)
-                if mask.any():
-                    results[col] = int(mask.sum())
-                    st.write(f"{col}: {int(mask.sum())} outliers")
-                    import matplotlib.pyplot as plt
-                    plt.figure()
-                    df[col].plot.box()
-                    st.pyplot(plt.gcf())
-            if results:
-                sections["Valeurs aberrantes"] = "\n".join(f"- {k}: {v}" for k, v in results.items())
+            num_cols = df.select_dtypes(include="number").columns
+            st.write(
+                "Recherche des valeurs aberrantes dans les colonnes numériques : "
+                + ", ".join(num_cols)
+            )
+            results: Dict[str, int] = {}
+            with st.expander("Voir les résultats"):
+                for col in num_cols:
+                    mask = detect_outliers_iqr(df, col)
+                    if mask.any():
+                        results[col] = int(mask.sum())
+                        st.write(f"{col}: {int(mask.sum())} outliers")
+                        import matplotlib.pyplot as plt
+                        plt.figure()
+                        df[col].plot.box()
+                        st.pyplot(plt.gcf())
+                if not results:
+                    st.write("Aucune valeur aberrante détectée.")
+            if results and st.checkbox("Inclure dans le rapport", key="outliers"):
+                sections["Valeurs aberrantes"] = "\n".join(
+                    f"- {k}: {v}" for k, v in results.items()
+                )
 
         if any(a["analysis"] == "Corrélation linéaire (Pearson)" for a in remaining):
             st.write("### Corrélations significatives")
+            num_cols = df.select_dtypes(include="number").columns
+            st.write(
+                "Analyse des corrélations linéaires entre : " + ", ".join(num_cols)
+            )
             corr_df = pearson_correlations(df)
-            if not corr_df.empty:
-                st.dataframe(corr_df)
+            with st.expander("Voir les résultats"):
+                if not corr_df.empty:
+                    st.dataframe(corr_df)
+                    import seaborn as sns
+                    import matplotlib.pyplot as plt
+                    plt.figure(figsize=(6, 4))
+                    sns.heatmap(
+                        df.select_dtypes(include="number").corr(),
+                        annot=True,
+                        cmap="viridis",
+                    )
+                    st.pyplot(plt.gcf())
+                else:
+                    st.write("Aucune corrélation significative détectée.")
+            if not corr_df.empty and st.checkbox("Inclure dans le rapport", key="corr"):
                 sections["Corrélations"] = corr_df.to_markdown(index=False)
-                import seaborn as sns
-                import matplotlib.pyplot as plt
-                plt.figure(figsize=(6, 4))
-                sns.heatmap(df.select_dtypes(include="number").corr(), annot=True, cmap="viridis")
-                st.pyplot(plt.gcf())
 
         if any(a["analysis"] == "Régression linéaire simple" for a in remaining):
             st.write("### Régression linéaire simple")
             num_cols = df.select_dtypes(include="number").columns
             if len(num_cols) >= 2:
                 x_col, y_col = num_cols[:2]
+                st.write(f"Modélisation de {y_col} en fonction de {x_col}.")
                 pval, r2 = simple_linear_regression(df, x_col, y_col)
-                st.write(f"Modèle {y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}")
-                sections["Régression"] = f"{y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}"
-                import seaborn as sns
-                import matplotlib.pyplot as plt
-                plt.figure()
-                sns.regplot(x=df[x_col], y=df[y_col])
-                st.pyplot(plt.gcf())
+                with st.expander("Voir les résultats"):
+                    st.write(
+                        f"Modèle {y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}"
+                    )
+                    import seaborn as sns
+                    import matplotlib.pyplot as plt
+                    plt.figure()
+                    sns.regplot(x=df[x_col], y=df[y_col])
+                    st.pyplot(plt.gcf())
+                if st.checkbox("Inclure dans le rapport", key="regression"):
+                    sections[
+                        "Régression"
+                    ] = f"{y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}"
+            else:
+                st.write("Pas assez de colonnes numériques pour effectuer une régression.")
 
         if sections:
             html = generate_report(sections)
             st.download_button(
-                "Télécharger rapport", data=html, file_name="rapport.html", mime="text/html"
+                "Télécharger rapport HTML", data=html, file_name="rapport.html", mime="text/html"
+            )
+            pdf = generate_pdf_report(sections)
+            st.download_button(
+                "Télécharger rapport PDF", data=pdf, file_name="rapport.pdf", mime="application/pdf"
             )
 
 

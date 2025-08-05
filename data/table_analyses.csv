@@ -1,0 +1,25 @@
+Catégorie,Type d'analyse,Condition automatique à tester,Résultat d'intérêt potentiel à signaler
+Descriptive/Exploratoire,Résumé statistique,Variance élevée ou distribution asymétrique,Variables avec forte dispersion ou asymétrie
+Descriptive/Exploratoire,Distribution des données,Test de Shapiro-Wilk,Variables s’éloignant significativement de la normalité
+Descriptive/Exploratoire,Valeurs aberrantes,Méthode IQR ou Z-score > 3,Présence significative de valeurs aberrantes
+Corrélationnelle,Corrélation linéaire (Pearson),"Corrélation paires numériques, p-value < 0.05",Paires de variables significativement corrélées
+Corrélationnelle,Corrélation non-paramétrique (Spearman),"Corrélations non-linéaires, p-value < 0.05",Paires de variables corrélées de façon non-linéaire
+Inférentielle,Tests de moyenne,"Test t ou ANOVA, p-value < 0.05",Variables catégorielles influençant une variable numérique
+Inférentielle,Tests de proportion,"Chi-carré ou Fisher exact, p-value < 0.05",Liens significatifs entre variables catégorielles
+Inférentielle,Tests non-paramétriques,"Wilcoxon, Kruskal-Wallis, p-value < 0.05",Influence significative de variables ordinales
+Modélisation prédictive simple,Régression linéaire simple,"p-value globale < 0.05, R² élevé",Relations significatives entre variables numériques
+Modélisation prédictive simple,Régression logistique simple,"p-value globale < 0.05, AUC > 0.7",Variables influençant significativement une variable binaire
+Modélisation prédictive simple,Régression Poisson simple,"p-value globale < 0.05, déviance faible",Variables influençant des comptages
+Modélisation prédictive multiple,Régression multiple,Sélection AIC/BIC ou stepwise,Combinaisons optimales de prédicteurs significatifs
+Modélisation prédictive multiple,Régression logistique multiple,Sélection AIC/BIC ou stepwise,Modèles binaires avec variables explicatives significatives
+Modélisation prédictive multiple,Analyse discriminante,MANOVA p-value < 0.05,Groupes bien séparés
+Analyses multivariées avancées,Analyse en composantes principales (PCA),Variance expliquée > 60% par premières composantes,Réduction dimensionnelle efficace
+Analyses multivariées avancées,Analyse factorielle,Bartlett ou KMO > 0.6,Données adaptées à un modèle factoriel
+Analyses multivariées avancées,Analyse en cluster,Silhouette > 0.5 ou indice Dunn élevé,Groupements naturels présents
+Analyses multivariées avancées,Analyse des correspondances (MCA/CA),Inertie > 60% dans premiers axes,Structure intéressante dans données catégorielles
+Analyses temporelles,Analyse de séries temporelles,Test Dickey-Fuller stationnarité,Stationnarité ou besoin de différenciation
+Analyses temporelles,Modèles ARIMA,ACF/PACF significatives,Structure temporelle significative
+Analyses temporelles,Analyse de survie,Log-rank p-value < 0.05,Effets significatifs sur temps d’événement
+Machine Learning (basique),Arbres de décision,Gain d’information élevé,Segmentation claire
+Machine Learning (basique),K-means clustering,Silhouette > 0.5,Présence de groupes naturels
+Machine Learning (basique),Forêts aléatoires,"OOB error faible, importance variable > 0.7",Variables influentes pour la prédiction

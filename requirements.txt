@@ -9,3 +9,4 @@ markdown
 matplotlib
 seaborn
 pytest
+openpyxl>=3.1

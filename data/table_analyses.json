@@ -1,0 +1,146 @@
+[
+  {
+    "category": "Descriptive/Exploratoire",
+    "analysis": "Résumé statistique",
+    "condition": "Variance élevée ou distribution asymétrique",
+    "result": "Variables avec forte dispersion ou asymétrie"
+  },
+  {
+    "category": "Descriptive/Exploratoire",
+    "analysis": "Distribution des données",
+    "condition": "Test de Shapiro-Wilk",
+    "result": "Variables s’éloignant significativement de la normalité"
+  },
+  {
+    "category": "Descriptive/Exploratoire",
+    "analysis": "Valeurs aberrantes",
+    "condition": "Méthode IQR ou Z-score > 3",
+    "result": "Présence significative de valeurs aberrantes"
+  },
+  {
+    "category": "Corrélationnelle",
+    "analysis": "Corrélation linéaire (Pearson)",
+    "condition": "Corrélation paires numériques, p-value < 0.05",
+    "result": "Paires de variables significativement corrélées"
+  },
+  {
+    "category": "Corrélationnelle",
+    "analysis": "Corrélation non-paramétrique (Spearman)",
+    "condition": "Corrélations non-linéaires, p-value < 0.05",
+    "result": "Paires de variables corrélées de façon non-linéaire"
+  },
+  {
+    "category": "Inférentielle",
+    "analysis": "Tests de moyenne",
+    "condition": "Test t ou ANOVA, p-value < 0.05",
+    "result": "Variables catégorielles influençant une variable numérique"
+  },
+  {
+    "category": "Inférentielle",
+    "analysis": "Tests de proportion",
+    "condition": "Chi-carré ou Fisher exact, p-value < 0.05",
+    "result": "Liens significatifs entre variables catégorielles"
+  },
+  {
+    "category": "Inférentielle",
+    "analysis": "Tests non-paramétriques",
+    "condition": "Wilcoxon, Kruskal-Wallis, p-value < 0.05",
+    "result": "Influence significative de variables ordinales"
+  },
+  {
+    "category": "Modélisation prédictive simple",
+    "analysis": "Régression linéaire simple",
+    "condition": "p-value globale < 0.05, R² élevé",
+    "result": "Relations significatives entre variables numériques"
+  },
+  {
+    "category": "Modélisation prédictive simple",
+    "analysis": "Régression logistique simple",
+    "condition": "p-value globale < 0.05, AUC > 0.7",
+    "result": "Variables influençant significativement une variable binaire"
+  },
+  {
+    "category": "Modélisation prédictive simple",
+    "analysis": "Régression Poisson simple",
+    "condition": "p-value globale < 0.05, déviance faible",
+    "result": "Variables influençant des comptages"
+  },
+  {
+    "category": "Modélisation prédictive multiple",
+    "analysis": "Régression multiple",
+    "condition": "Sélection AIC/BIC ou stepwise",
+    "result": "Combinaisons optimales de prédicteurs significatifs"
+  },
+  {
+    "category": "Modélisation prédictive multiple",
+    "analysis": "Régression logistique multiple",
+    "condition": "Sélection AIC/BIC ou stepwise",
+    "result": "Modèles binaires avec variables explicatives significatives"
+  },
+  {
+    "category": "Modélisation prédictive multiple",
+    "analysis": "Analyse discriminante",
+    "condition": "MANOVA p-value < 0.05",
+    "result": "Groupes bien séparés"
+  },
+  {
+    "category": "Analyses multivariées avancées",
+    "analysis": "Analyse en composantes principales (PCA)",
+    "condition": "Variance expliquée > 60% par premières composantes",
+    "result": "Réduction dimensionnelle efficace"
+  },
+  {
+    "category": "Analyses multivariées avancées",
+    "analysis": "Analyse factorielle",
+    "condition": "Bartlett ou KMO > 0.6",
+    "result": "Données adaptées à un modèle factoriel"
+  },
+  {
+    "category": "Analyses multivariées avancées",
+    "analysis": "Analyse en cluster",
+    "condition": "Silhouette > 0.5 ou indice Dunn élevé",
+    "result": "Groupements naturels présents"
+  },
+  {
+    "category": "Analyses multivariées avancées",
+    "analysis": "Analyse des correspondances (MCA/CA)",
+    "condition": "Inertie > 60% dans premiers axes",
+    "result": "Structure intéressante dans données catégorielles"
+  },
+  {
+    "category": "Analyses temporelles",
+    "analysis": "Analyse de séries temporelles",
+    "condition": "Test Dickey-Fuller stationnarité",
+    "result": "Stationnarité ou besoin de différenciation"
+  },
+  {
+    "category": "Analyses temporelles",
+    "analysis": "Modèles ARIMA",
+    "condition": "ACF/PACF significatives",
+    "result": "Structure temporelle significative"
+  },
+  {
+    "category": "Analyses temporelles",
+    "analysis": "Analyse de survie",
+    "condition": "Log-rank p-value < 0.05",
+    "result": "Effets significatifs sur temps d’événement"
+  },
+  {
+    "category": "Machine Learning (basique)",
+    "analysis": "Arbres de décision",
+    "condition": "Gain d’information élevé",
+    "result": "Segmentation claire"
+  },
+  {
+    "category": "Machine Learning (basique)",
+    "analysis": "K-means clustering",
+    "condition": "Silhouette > 0.5",
+    "result": "Présence de groupes naturels"
+  },
+  {
+    "category": "Machine Learning (basique)",
+    "analysis": "Forêts aléatoires",
+    "condition": "OOB error faible, importance variable > 0.7",
+    "result": "Variables influentes pour la prédiction"
+  }
+]

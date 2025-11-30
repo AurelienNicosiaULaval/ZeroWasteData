@@ -12,20 +12,49 @@ from analyses.regressions import SimpleLinearRegressionAnalysis
 from analyses.multivariate import PCAAnalysis
 from analyses.inference import TTestAnalysis, ANOVAAnalysis, ChiSquareAnalysis
 from analyses.advanced import LogisticRegressionAnalysis, TimeSeriesAnalysis
-from utils.report import generate_report, generate_pdf_report
+from utils.report import generate_pdf_report
 from utils.cleaning import (
     check_quality,
     clean_duplicates,
     impute_missing,
     convert_types,
 )
+from utils.scoring import (
+    calculate_demo_power,
+    calculate_zero_waste_score,
+    calculate_eco_impact,
+)
+from analyses.manager import AnalysisManager
 
 
+@st.cache_data
 def load_data(file) -> pd.DataFrame:
     if file.name.endswith(".csv"):
         return pd.read_csv(file)
     else:
         return pd.read_excel(file)
+
+
+@st.cache_data
+def get_applicable_analyses_wrapper(df: pd.DataFrame) -> list:
+    manager = AnalysisManager()
+    # Descriptive
+    manager.register_analysis(OutlierAnalysis)
+    manager.register_analysis(DistributionAnalysis)
+    # Correlation
+    manager.register_analysis(CorrelationAnalysis)
+    # Inference
+    manager.register_analysis(TTestAnalysis)
+    manager.register_analysis(ANOVAAnalysis)
+    manager.register_analysis(ChiSquareAnalysis)
+    # Predictive
+    manager.register_analysis(SimpleLinearRegressionAnalysis)
+    manager.register_analysis(LogisticRegressionAnalysis)
+    # Advanced
+    manager.register_analysis(PCAAnalysis)
+    manager.register_analysis(TimeSeriesAnalysis)
+
+    return manager.get_applicable_analyses(df)
 
 
 def main() -> None:
@@ -56,7 +85,26 @@ def main() -> None:
         st.error(f"Erreur lors du chargement du fichier : {e}")
         return
 
+    # --- Sidebar: Indicators ---
+    with st.sidebar:
+        st.markdown("### 🌱 Zero Waste Score")
+
+        # Demo Power
+        demo_power = calculate_demo_power(df)
+        st.metric(
+            "Puissance de Démo",
+            f"{demo_power}/100",
+            help="Indicateur de la richesse du jeu de données.",
+        )
+
+        # Eco Impact
+        eco_impact = calculate_eco_impact(df)
+        st.caption(f"Empreinte : {eco_impact}")
+
+        st.markdown("---")
+
     # --- Sidebar: Column Selection ---
+    # ...
     with st.sidebar:
         st.markdown("---")
         st.subheader("Filtrage des colonnes")
@@ -84,15 +132,25 @@ def main() -> None:
     # Inference
     manager.register_analysis(TTestAnalysis)
     manager.register_analysis(ANOVAAnalysis)
-    manager.register_analysis(ChiSquareAnalysis)
-    # Predictive
-    manager.register_analysis(SimpleLinearRegressionAnalysis)
-    manager.register_analysis(LogisticRegressionAnalysis)
-    # Advanced
-    manager.register_analysis(PCAAnalysis)
-    manager.register_analysis(TimeSeriesAnalysis)
+    # The manager setup is now inside the cached function get_applicable_analyses_wrapper
+    # manager = AnalysisManager()
+    # # Descriptive
+    # manager.register_analysis(OutlierAnalysis)
+    # manager.register_analysis(DistributionAnalysis)
+    # # Correlation
+    # manager.register_analysis(CorrelationAnalysis)
+    # # Inference
+    # manager.register_analysis(TTestAnalysis)
+    # manager.register_analysis(ANOVAAnalysis)
+    # manager.register_analysis(ChiSquareAnalysis)
+    # # Predictive
+    # manager.register_analysis(SimpleLinearRegressionAnalysis)
+    # manager.register_analysis(LogisticRegressionAnalysis)
+    # # Advanced
+    # manager.register_analysis(PCAAnalysis)
+    # manager.register_analysis(TimeSeriesAnalysis)
 
-    applicable_analyses = manager.get_applicable_analyses(df)
+    applicable_analyses = get_applicable_analyses_wrapper(df)
     applicable_names = [a.name for a in applicable_analyses]
 
     # --- Sidebar: Already Done ---
@@ -108,6 +166,17 @@ def main() -> None:
     # Split analyses
     suggested_analyses = [a for a in applicable_analyses if a.name not in already_done]
     done_analyses = [a for a in applicable_analyses if a.name in already_done]
+
+    # --- Sidebar: Zero Waste Progress ---
+    with st.sidebar:
+        zw_score = calculate_zero_waste_score(
+            len(done_analyses), len(applicable_analyses)
+        )
+        st.progress(zw_score / 100, text=f"Score Zéro Déchet : {zw_score}%")
+        if zw_score < 100:
+            st.caption("Continuez d'explorer pour ne rien gâcher !")
+        else:
+            st.caption("Bravo ! Vous avez tout exploité ! ♻️")
 
     # --- Main Layout ---
     st.title(f"Analyse de : {uploaded_file.name}")
@@ -220,12 +289,10 @@ def main() -> None:
                         # Run and Render
                         try:
                             result = analysis.run(df)
-                            report_content = analysis.render_streamlit(df, result)
+                            report_content, plot = analysis.render_streamlit(df, result)
 
                             # Code Generation (Professor Mode)
-                            with st.expander(
-                                "👨‍🏫 Mode Professeur : Voir le code Python"
-                            ):
+                            with st.expander("👨‍🏫 Mode Professeur : Voir le code"):
                                 # Extract kwargs for code generation based on analysis type
                                 kwargs = {}
                                 if analysis.name == "Distribution des données":
@@ -277,9 +344,17 @@ def main() -> None:
                                     kwargs["val_col"] = st.session_state.get(
                                         "ts_val", "Value"
                                     )
-
-                                code = analysis.generate_code(df_name="df", **kwargs)
-                                st.code(code, language="python")
+                                tab_py, tab_r = st.tabs(["🐍 Python", "🔵 R"])
+                                with tab_py:
+                                    code_py = analysis.generate_code(
+                                        df_name="df", **kwargs
+                                    )
+                                    st.code(code_py, language="python")
+                                with tab_r:
+                                    code_r = analysis.generate_r_code(
+                                        df_name="df", **kwargs
+                                    )
+                                    st.code(code_r, language="r")
 
                             if report_content:
                                 col_a, col_b = st.columns(2)
@@ -288,9 +363,11 @@ def main() -> None:
                                         "📝 Ajouter au rapport",
                                         key=f"{key_prefix}_rep_{analysis.name}",
                                     ):
+                                        # Save content and plot
                                         st.session_state.report_sections[
                                             analysis.name
-                                        ] = report_content
+                                        ] = {"text": report_content, "plot": plot}
+
                                         st.success("Ajouté au rapport !")
                                 with col_b:
                                     if st.button(
@@ -299,9 +376,13 @@ def main() -> None:
                                     ):
                                         if "dashboard_items" not in st.session_state:
                                             st.session_state.dashboard_items = {}
+                                        # Dashboard only needs text/plot object to render?
+                                        # Actually dashboard renders markdown/pyplot.
+                                        # We can store the tuple or just the text for now, or both.
+                                        # Let's store both to be safe.
                                         st.session_state.dashboard_items[
                                             analysis.name
-                                        ] = report_content
+                                        ] = (report_content, plot)
                                         st.success("Épinglé !")
 
                         except Exception as e:
@@ -342,12 +423,27 @@ def main() -> None:
             for i in range(0, len(items), 2):
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown(f"### {items[i][0]}")
-                    st.markdown(items[i][1])
+                    name, content = items[i]
+                    st.markdown(f"### {name}")
+                    if isinstance(content, tuple):
+                        text, plot = content
+                        st.markdown(text)
+                        if plot:
+                            st.pyplot(plot.draw())
+                    else:
+                        st.markdown(content)
+
                 if i + 1 < len(items):
                     with col2:
-                        st.markdown(f"### {items[i + 1][0]}")
-                        st.markdown(items[i + 1][1])
+                        name, content = items[i + 1]
+                        st.markdown(f"### {name}")
+                        if isinstance(content, tuple):
+                            text, plot = content
+                            st.markdown(text)
+                            if plot:
+                                st.pyplot(plot.draw())
+                        else:
+                            st.markdown(content)
         else:
             st.info(
                 "Votre tableau de bord est vide. Épinglez des analyses depuis l'onglet 'Suggestions' !"
@@ -361,25 +457,22 @@ def main() -> None:
                 f"Sections incluses : {', '.join(st.session_state.report_sections.keys())}"
             )
 
+            if st.button("Générer le rapport PDF"):
+                # Convert session state format to what generate_pdf_report expects
+                # It expects a dict of section_name -> content
+                # But now content is a dict {text, plot}
+                # We need to update generate_pdf_report to handle this.
+                pdf_bytes = generate_pdf_report(st.session_state.report_sections)
+                st.download_button(
+                    label="Télécharger le PDF",
+                    data=pdf_bytes,
+                    file_name="rapport_zerowastedata.pdf",
+                    mime="application/pdf",
+                )
+
             if st.button("Vider le rapport"):
                 st.session_state.report_sections = {}
                 st.rerun()
-
-            html = generate_report(st.session_state.report_sections)
-            st.download_button(
-                "📥 Télécharger HTML",
-                data=html,
-                file_name="rapport_zerowaste.html",
-                mime="text/html",
-            )
-
-            pdf = generate_pdf_report(st.session_state.report_sections)
-            st.download_button(
-                "📥 Télécharger PDF",
-                data=pdf,
-                file_name="rapport_zerowaste.pdf",
-                mime="application/pdf",
-            )
 
             st.markdown("---")
             st.markdown("### Prévisualisation")

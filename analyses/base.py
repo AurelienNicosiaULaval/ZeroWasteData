@@ -14,6 +14,17 @@ class BaseAnalysis(ABC):
 
     @property
     @abstractmethod
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        """Génère le code Python pour reproduire l'analyse."""
+        pass
+
+    @abstractmethod
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        """Génère le code R (tidyverse) pour reproduire l'analyse."""
+        pass
+
+    @property
+    @abstractmethod
     def category(self) -> str:
         """Category of the analysis (e.g., 'Descriptive', 'Correlation')."""
         pass
@@ -44,15 +55,4 @@ class BaseAnalysis(ABC):
         pass
 
     @abstractmethod
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
-        """
-        Display the results in Streamlit.
-
-        Args:
-            df: The original DataFrame.
-            result: The result returned by run().
-
-        Returns:
-            Optional[str]: Markdown content to be included in the report, or None.
-        """
         pass

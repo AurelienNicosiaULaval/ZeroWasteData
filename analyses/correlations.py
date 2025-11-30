@@ -53,37 +53,38 @@ class CorrelationAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> pd.DataFrame:
         return pearson_correlations(df)
 
-    def render_streamlit(self, df: pd.DataFrame, result: pd.DataFrame) -> Optional[str]:
-        st.write("### Corrélations significatives")
+    def render_streamlit(
+        self, df: pd.DataFrame, result: pd.DataFrame
+    ) -> tuple[Optional[str], Optional[Any]]:
+        st.write("### Analyse de Corrélation")
 
         if result.empty:
-            st.write("Aucune corrélation significative détectée.")
-            return None
+            st.write("Aucune corrélation significative trouvée.")
+            return None, None
 
-        st.write("Paires de variables significativement corrélées :")
         st.dataframe(result)
 
-        with st.expander("Voir la matrice de corrélation"):
-            # Prepare data for plotnine heatmap
-            corr_matrix = df.select_dtypes(include="number").corr().reset_index()
-            corr_melted = corr_matrix.melt(
-                id_vars="index", var_name="variable", value_name="correlation"
-            )
+        # Heatmap
+        numeric_df = df.select_dtypes(include="number").dropna()
+        corr_matrix = numeric_df.corr().reset_index()
+        corr_melted = corr_matrix.melt(
+            id_vars="index", var_name="variable", value_name="correlation"
+        )
 
-            p = (
-                ggplot(corr_melted, aes(x="index", y="variable", fill="correlation"))
-                + geom_tile(color="white")
-                + scale_fill_gradient2(
-                    low="blue", mid="white", high="red", midpoint=0, limit=(-1, 1)
-                )
-                + geom_text(aes(label="correlation"), format_string="{:.2f}", size=8)
-                + theme_minimal()
-                + labs(title="Matrice de Corrélation", x="", y="")
-                + theme(axis_text_x=element_text(rotation=45, hjust=1))
+        p = (
+            ggplot(corr_melted, aes(x="index", y="variable", fill="correlation"))
+            + geom_tile(color="white")
+            + scale_fill_gradient2(
+                low="blue", mid="white", high="red", midpoint=0, limit=(-1, 1)
             )
-            st.pyplot(p.draw())
+            + geom_text(aes(label="correlation"), format_string="{:.2f}", size=8)
+            + theme_minimal()
+            + labs(title="Matrice de Corrélation", x="", y="")
+            + theme(axis_text_x=element_text(rotation=45, hjust=1))
+        )
+        st.pyplot(p.draw())
 
-        return result.to_markdown(index=False)
+        return "Matrice de corrélation affichée.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         return f"""
@@ -115,4 +116,27 @@ p = (ggplot(corr_melted, aes(x='index', y='variable', fill='correlation'))
      + theme(axis_text_x=element_text(rotation=45, hjust=1))
     )
 print(p)
+"""
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        return f"""
+# Analyse de Corrélation (R)
+library(ggplot2)
+library(reshape2)
+
+# Calcul des corrélations
+numeric_df <- {df_name}[sapply({df_name}, is.numeric)]
+numeric_df <- na.omit(numeric_df)
+
+corr_matrix <- cor(numeric_df)
+corr_melted <- melt(corr_matrix)
+
+# Graphique
+ggplot(corr_melted, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, limit = c(-1, 1)) +
+  geom_text(aes(label = round(value, 2)), size = 3) +
+  theme_minimal() +
+  labs(title = "Matrice de Corrélation", x = "", y = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 """

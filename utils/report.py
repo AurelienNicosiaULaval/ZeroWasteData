@@ -1,68 +1,57 @@
-"""Génération de rapports en Markdown puis conversion en HTML."""
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Any, Dict
-
-import markdown
-from jinja2 import Template
 from fpdf import FPDF
+import tempfile
+import os
 
 
-DEFAULT_TEMPLATE = """\
-# Rapport d'analyses
-
-{% for title, content in sections.items() %}
-## {{ title }}
-{{ content }}
-
-{% endfor %}
-"""
-
-
-def generate_report(sections: Dict[str, str], template: str | None = None) -> str:
-    """Génère un rapport HTML à partir d'un dictionnaire de sections.
-
-    Parameters
-    ----------
-    sections : dict
-        Mapping `titre -> contenu Markdown`.
-    template : str, optional
-        Template Markdown à utiliser. Par défaut, un template minimal est utilisé.
-
-    Returns
-    -------
-    str
-        Rapport converti en HTML.
-    """
-    template_str = template or DEFAULT_TEMPLATE
-    md_text = Template(template_str).render(sections=sections)
-    return markdown.markdown(md_text, extensions=["tables"])
+def generate_report(sections: dict) -> str:
+    """Génère un rapport HTML simple."""
+    html = "<h1>Rapport d'Analyse ZeroWasteData</h1>"
+    for title, content in sections.items():
+        html += f"<h2>{title}</h2>"
+        if isinstance(content, dict):
+            html += f"<p>{content['text']}</p>"
+        else:
+            html += f"<p>{content}</p>"
+    return html
 
 
-def generate_pdf_report(sections: Dict[str, str]) -> bytes:
-    """Génère un rapport PDF à partir d'un dictionnaire de sections.
-
-    Parameters
-    ----------
-    sections : dict
-        Mapping `titre -> contenu Markdown`.
-
-    Returns
-    -------
-    bytes
-        Fichier PDF généré.
-    """
+def generate_pdf_report(sections: dict) -> bytes:
+    """Génère un rapport PDF."""
     pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Rapport d'analyses", ln=True)
+    pdf.cell(0, 10, "Rapport d'Analyse ZeroWasteData", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("Arial", "", 12)
+
     for title, content in sections.items():
-        pdf.ln(5)
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, title, ln=True)
-        pdf.set_font("Arial", size=12)
-        for line in content.splitlines():
-            pdf.multi_cell(0, 8, line)
+        pdf.set_font("Arial", "", 12)
+
+        text = ""
+        plot = None
+
+        if isinstance(content, dict):
+            text = content.get("text", "")
+            plot = content.get("plot")
+        else:
+            text = str(content)
+
+        # Write text (handle encoding)
+        pdf.multi_cell(0, 10, text.encode("latin-1", "replace").decode("latin-1"))
+        pdf.ln(5)
+
+        # Add plot if available
+        if plot:
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    plot.save(tmp.name, width=6, height=4, dpi=150)
+                    pdf.image(tmp.name, w=170)
+                    pdf.ln(5)
+                os.unlink(tmp.name)
+            except Exception as e:
+                pdf.cell(0, 10, f"[Erreur lors de l'ajout du graphique : {e}]", ln=True)
+
     return pdf.output(dest="S").encode("latin-1")

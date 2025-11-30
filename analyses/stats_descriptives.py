@@ -55,14 +55,15 @@ class OutlierAnalysis(BaseAnalysis):
 
     def render_streamlit(
         self, df: pd.DataFrame, result: Dict[str, int]
-    ) -> Optional[str]:
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Valeurs aberrantes")
         if not result:
             st.write("Aucune valeur aberrante détectée.")
-            return None
+            return None, None
 
         st.write(f"Colonnes avec outliers : {', '.join(result.keys())}")
 
+        last_plot = None
         with st.expander("Voir les détails et graphiques"):
             for col, count in result.items():
                 st.write(f"**{col}**: {count} outliers")
@@ -76,8 +77,9 @@ class OutlierAnalysis(BaseAnalysis):
                     + theme(axis_text_x=element_text(size=0))  # Hide x axis text
                 )
                 st.pyplot(p.draw())
+                last_plot = p
 
-        return "\n".join(f"- {k}: {v} outliers" for k, v in result.items())
+        return "\n".join(f"- {k}: {v} outliers" for k, v in result.items()), last_plot
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         return f"""
@@ -108,6 +110,40 @@ for col in num_cols:
         print(p)
 """
 
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        return f"""
+# Détection des valeurs aberrantes (Outliers) (R)
+library(dplyr)
+library(ggplot2)
+
+detect_outliers_iqr <- function(df, col) {{
+  q1 <- quantile(df[[col]], 0.25, na.rm = TRUE)
+  q3 <- quantile(df[[col]], 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  lower_bound <- q1 - 1.5 * iqr
+  upper_bound <- q3 + 1.5 * iqr
+  return(df[[col]] < lower_bound | df[[col]] > upper_bound)
+}}
+
+# Exemple pour une colonne numérique
+num_cols <- names(select_if({df_name}, is.numeric))
+
+for (col in num_cols) {{
+  outliers <- detect_outliers_iqr({df_name}, col)
+  if (any(outliers, na.rm = TRUE)) {{
+    cat(paste(col, ":", sum(outliers, na.rm = TRUE), "outliers\\n"))
+    
+    # Visualisation
+    p <- ggplot({df_name}, aes_string(x = factor(0), y = col)) +
+      geom_boxplot(fill = "steelblue", alpha = 0.7) +
+      theme_minimal() +
+      labs(title = paste("Boxplot de", col), x = "", y = col) +
+      theme(axis.text.x = element_blank())
+    print(p)
+  }}
+}}
+"""
+
 
 class DistributionAnalysis(BaseAnalysis):
     @property
@@ -131,7 +167,9 @@ class DistributionAnalysis(BaseAnalysis):
         # Pas de calcul complexe, juste de la visu
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Distribution des données")
         num_cols = df.select_dtypes(include="number").columns
 
@@ -146,7 +184,7 @@ class DistributionAnalysis(BaseAnalysis):
         )
         st.pyplot(p.draw())
 
-        return f"Distribution analysée pour {col_to_plot}."
+        return f"Distribution analysée pour {col_to_plot}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         col = kwargs.get("col", "variable_name")

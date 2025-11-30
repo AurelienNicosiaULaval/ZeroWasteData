@@ -42,37 +42,40 @@ class SimpleLinearRegressionAnalysis(BaseAnalysis):
         # On ne lance pas tout d'un coup, c'est interactif
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
-        st.write("### Régression linéaire simple")
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
+        st.write("### Régression Linéaire Simple")
+
         num_cols = df.select_dtypes(include="number").columns
+        c1, c2 = st.columns(2)
+        x_col = c1.selectbox("Variable X (Indépendante)", num_cols, key="reg_x")
+        y_col = c2.selectbox(
+            "Variable Y (Dépendante)", [c for c in num_cols if c != x_col], key="reg_y"
+        )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            x_col = st.selectbox("Variable explicative (X)", num_cols, key="reg_x")
-        with col2:
-            y_col = st.selectbox(
-                "Variable cible (Y)", [c for c in num_cols if c != x_col], key="reg_y"
-            )
+        if not x_col or not y_col:
+            return None, None
 
-        if x_col and y_col:
-            pval, r2 = simple_linear_regression(df, x_col, y_col)
+        # Run regression
+        data = df[[x_col, y_col]].dropna()
+        X = sm.add_constant(data[x_col])
+        y = data[y_col]
+        model = sm.OLS(y, X).fit()
 
-            st.write(f"Modèle : **{y_col} ~ {x_col}**")
-            st.write(f"- R² : {r2:.3f}")
-            st.write(f"- p-value : {pval:.3g}")
+        st.write(model.summary())
 
-            with st.expander("Voir le graphique"):
-                p = (
-                    ggplot(df, aes(x=x_col, y=y_col))
-                    + geom_point(alpha=0.6)
-                    + geom_smooth(method="lm", color="red")
-                    + theme_minimal()
-                    + labs(title=f"Régression : {y_col} vs {x_col}")
-                )
-                st.pyplot(p.draw())
+        # Plot
+        p = (
+            ggplot(data, aes(x=x_col, y=y_col))
+            + geom_point(alpha=0.6)
+            + geom_smooth(method="lm", color="red")
+            + theme_minimal()
+            + labs(title=f"Régression : {y_col} vs {x_col}")
+        )
+        st.pyplot(p.draw())
 
-            return f"Régression {y_col} ~ {x_col} : R²={r2:.3f}, p-value={pval:.3g}"
-        return None
+        return f"Régression linéaire : {y_col} ~ {x_col}. R2 = {model.rsquared:.3f}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         x_col = kwargs.get("x_col", "X")
@@ -103,4 +106,27 @@ p = (ggplot(data, aes(x=x_col, y=y_col))
      + labs(title=f"Régression : {{y_col}} vs {{x_col}}")
     )
 print(p)
+"""
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        x_col = kwargs.get("x_col", "X")
+        y_col = kwargs.get("y_col", "Y")
+        return f"""
+# Régression Linéaire Simple (R)
+library(ggplot2)
+
+x_col <- "{x_col}"
+y_col <- "{y_col}"
+
+# Modèle
+formula <- as.formula(paste(y_col, "~", x_col))
+model <- lm(formula, data = {df_name})
+summary(model)
+
+# Graphique
+ggplot({df_name}, aes_string(x = x_col, y = y_col)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red") +
+  theme_minimal() +
+  labs(title = paste("Régression :", y_col, "vs", x_col))
 """

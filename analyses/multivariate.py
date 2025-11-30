@@ -27,7 +27,9 @@ class PCAAnalysis(BaseAnalysis):
         # Interactive
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Analyse en Composantes Principales (PCA)")
 
         num_cols = df.select_dtypes(include="number").columns
@@ -37,7 +39,7 @@ class PCAAnalysis(BaseAnalysis):
 
         if len(selected_cols) < 2:
             st.warning("Veuillez sélectionner au moins 2 variables.")
-            return None
+            return None, None
 
         data = df[selected_cols].dropna()
         scaler = StandardScaler()
@@ -67,7 +69,10 @@ class PCAAnalysis(BaseAnalysis):
         )
         st.pyplot(p.draw())
 
-        return f"PCA réalisée sur {len(selected_cols)} variables. Variance expliquée cumulée (2 axes) : {sum(explained_variance):.1%}."
+        return (
+            f"PCA réalisée sur {len(selected_cols)} variables. Variance expliquée cumulée (2 axes) : {sum(explained_variance):.1%}.",
+            p,
+        )
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         cols = kwargs.get("cols", ["col1", "col2", "col3"])
@@ -105,4 +110,32 @@ p = (ggplot(pca_df, aes(x='PC1', y='PC2'))
      )
     )
 print(p)
+"""
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        cols = kwargs.get("cols", ["col1", "col2", "col3"])
+        # Convert python list string to R vector string
+        r_cols = (
+            "c(" + ", ".join([f'"{c}"' for c in cols]) + ")"
+            if isinstance(cols, list)
+            else "c()"
+        )
+
+        return f"""
+# Analyse en Composantes Principales (PCA) (R)
+library(ggplot2)
+library(ggfortify)
+
+# Sélection des variables
+selected_cols <- {r_cols}
+data <- na.omit({df_name}[, selected_cols])
+
+# PCA
+pca_res <- prcomp(data, scale. = TRUE)
+summary(pca_res)
+
+# Graphique
+autoplot(pca_res, data = data, colour = 'purple', alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Projection PCA")
 """

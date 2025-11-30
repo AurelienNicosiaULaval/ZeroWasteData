@@ -39,66 +39,58 @@ class LogisticRegressionAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> Any:
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Régression Logistique")
 
-        cols = df.columns
-        binary_cols = [c for c in cols if df[c].nunique() == 2]
         num_cols = df.select_dtypes(include="number").columns
+        cat_cols = df.select_dtypes(include=["object", "category"]).columns
 
-        col1, col2 = st.columns(2)
-        with col1:
-            target_col = st.selectbox(
-                "Variable cible (Binaire)", binary_cols, key="logreg_y"
-            )
-        with col2:
-            feature_col = st.selectbox(
-                "Variable explicative (Numérique)", num_cols, key="logreg_x"
-            )
+        # Target should be binary (or categorical)
+        c1, c2 = st.columns(2)
+        target_col = c1.selectbox("Cible (Binaire)", cat_cols, key="logreg_y")
+        feature_col = c2.selectbox("Feature (Numérique)", num_cols, key="logreg_x")
 
-        if target_col and feature_col:
-            # Prepare data
-            data = df[[target_col, feature_col]].dropna()
-            # Encode target to 0/1 if not already
-            y = data[target_col]
-            if y.dtype == "object" or y.dtype.name == "category":
-                y = pd.Categorical(y).codes
+        if not target_col or not feature_col:
+            return None, None
 
-            x = sm.add_constant(data[feature_col])
+        # Run
+        data = df[[target_col, feature_col]].dropna()
+        y = data[target_col]
+        # Encode y if needed
+        if y.dtype == "object" or y.dtype.name == "category":
+            y = pd.Categorical(y).codes
 
-            try:
-                model = sm.Logit(y, x).fit(disp=0)
+        x = sm.add_constant(data[feature_col])
 
-                st.write(f"Modèle : **{target_col} ~ {feature_col}**")
-                st.write(f"- Pseudo R-squared: {model.prsquared:.3f}")
-                st.write(f"- p-value ({feature_col}): {model.pvalues[feature_col]:.3g}")
+        try:
+            model = sm.Logit(y, x).fit(disp=0)
+            st.write(model.summary())
 
-                if model.pvalues[feature_col] < 0.05:
-                    st.success("Relation significative !")
+            # Plot
+            plot_data = data.copy()
+            plot_data["y_encoded"] = y
 
-                # Plot
-                plot_data = data.copy()
-                plot_data["y_encoded"] = y
-
-                p = (
-                    ggplot(plot_data, aes(x=feature_col, y="y_encoded"))
-                    + geom_point(alpha=0.5)
-                    + geom_smooth(
-                        method="glm", method_args={"family": "binomial"}, color="red"
-                    )
-                    + theme_minimal()
-                    + labs(
-                        title=f"Régression Logistique : {target_col} vs {feature_col}",
-                        y="Probabilité",
-                    )
+            p = (
+                ggplot(plot_data, aes(x=feature_col, y="y_encoded"))
+                + geom_point(alpha=0.5)
+                + geom_smooth(
+                    method="glm", method_args={"family": "binomial"}, color="red"
                 )
-                st.pyplot(p.draw())
+                + theme_minimal()
+                + labs(
+                    title=f"Régression Logistique : {target_col} vs {feature_col}",
+                    y="Probabilité",
+                )
+            )
+            st.pyplot(p.draw())
 
-                return f"Régression Logistique ({target_col} ~ {feature_col}) : Pseudo R2={model.prsquared:.3f}"
+            return f"Régression Logistique ({target_col} ~ {feature_col}) : Pseudo R2={model.prsquared:.3f}"
 
-            except Exception as e:
-                st.error(f"Erreur lors de l'ajustement du modèle : {e}")
-                return None
+        except Exception as e:
+            st.error(f"Erreur lors de l'ajustement du modèle : {e}")
+            return None
         return None
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
@@ -138,6 +130,29 @@ p = (ggplot(plot_data, aes(x=feature_col, y='y_encoded'))
 print(p)
 """
 
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        target_col = kwargs.get("target_col", "Target")
+        feature_col = kwargs.get("feature_col", "Feature")
+        return f"""
+# Régression Logistique (R)
+library(ggplot2)
+
+target_col <- "{target_col}"
+feature_col <- "{feature_col}"
+
+# Modèle
+# Assurez-vous que la cible est un facteur ou 0/1
+model <- glm(as.formula(paste(target_col, "~", feature_col)), data = {df_name}, family = binomial)
+summary(model)
+
+# Graphique
+ggplot({df_name}, aes_string(x = feature_col, y = target_col)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), color = "red") +
+  theme_minimal() +
+  labs(title = paste("Régression Logistique :", target_col, "vs", feature_col), y = "Probabilité")
+"""
+
 
 class TimeSeriesAnalysis(BaseAnalysis):
     @property
@@ -170,48 +185,44 @@ class TimeSeriesAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> Any:
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Analyse de Séries Temporelles")
 
-        # Identify potential date columns
-        date_candidates = []
-        for col in df.columns:
-            if pd.api.types.is_datetime64_any_dtype(df[col]):
-                date_candidates.append(col)
-            elif (
-                "date" in col.lower() or "time" in col.lower() or "year" in col.lower()
-            ):
-                date_candidates.append(col)
-
+        # Find date cols
+        date_cols = [
+            c
+            for c in df.columns
+            if pd.api.types.is_datetime64_any_dtype(df[c]) or "date" in c.lower()
+        ]
         num_cols = df.select_dtypes(include="number").columns
 
-        col1, col2 = st.columns(2)
-        with col1:
-            date_col = st.selectbox(
-                "Variable temporelle", date_candidates, key="ts_date"
-            )
-        with col2:
-            val_col = st.selectbox("Variable à suivre", num_cols, key="ts_val")
+        if not date_cols:
+            st.warning("Aucune colonne de date trouvée.")
+            return None, None
 
-        if date_col and val_col:
-            # Ensure date is datetime
-            plot_data = df[[date_col, val_col]].copy().dropna()
-            try:
-                plot_data[date_col] = pd.to_datetime(plot_data[date_col])
-            except Exception:
-                st.warning(f"Impossible de convertir {date_col} en date.")
-                return None
+        c1, c2 = st.columns(2)
+        date_col = c1.selectbox("Colonne Date", date_cols, key="ts_date")
+        val_col = c2.selectbox("Valeur", num_cols, key="ts_val")
 
-            p = (
-                ggplot(plot_data, aes(x=date_col, y=val_col))
-                + geom_line(color="steelblue")
-                + theme_minimal()
-                + labs(title=f"Évolution de {val_col} dans le temps", x="Date")
-            )
-            st.pyplot(p.draw())
+        if not date_col or not val_col:
+            return None, None
 
-            return f"Série temporelle analysée pour {val_col}."
-        return None
+        # Plot
+        plot_data = df[[date_col, val_col]].copy().dropna()
+        # Ensure date is datetime
+        plot_data[date_col] = pd.to_datetime(plot_data[date_col])
+
+        p = (
+            ggplot(plot_data, aes(x=date_col, y=val_col))
+            + geom_line(color="steelblue")
+            + theme_minimal()
+            + labs(title=f"Évolution de {val_col} dans le temps", x="Date")
+        )
+        st.pyplot(p.draw())
+
+        return f"Série temporelle : {val_col} vs {date_col}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         date_col = kwargs.get("date_col", "Date")

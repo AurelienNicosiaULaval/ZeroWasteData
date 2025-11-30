@@ -38,52 +38,49 @@ class TTestAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> Any:
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Test t de Student")
 
         num_cols = df.select_dtypes(include="number").columns
-        cat_cols = [
-            c
-            for c in df.select_dtypes(include=["object", "category"]).columns
-            if df[c].nunique() == 2
-        ]
+        cat_cols = df.select_dtypes(include=["object", "category"]).columns
 
-        col1, col2 = st.columns(2)
-        with col1:
-            group_col = st.selectbox(
-                "Variable de groupe (2 niveaux)", cat_cols, key="ttest_grp"
-            )
-        with col2:
-            val_col = st.selectbox("Variable numérique", num_cols, key="ttest_val")
+        c1, c2 = st.columns(2)
+        group_col = c1.selectbox(
+            "Variable de Groupe (2 niveaux)", cat_cols, key="ttest_grp"
+        )
+        val_col = c2.selectbox("Variable Numérique", num_cols, key="ttest_val")
 
-        if group_col and val_col:
-            groups = df[group_col].unique()
-            g1 = df[df[group_col] == groups[0]][val_col].dropna()
-            g2 = df[df[group_col] == groups[1]][val_col].dropna()
+        if not group_col or not val_col:
+            return None, None
 
-            t_stat, p_val = stats.ttest_ind(g1, g2)
+        groups = df[group_col].unique()
+        if len(groups) != 2:
+            st.warning("La variable de groupe doit avoir exactement 2 niveaux.")
+            return None, None
 
-            st.write(
-                f"Comparaison de **{val_col}** par **{group_col}** ({groups[0]} vs {groups[1]})"
-            )
-            st.write(f"- t-statistic: {t_stat:.3f}")
-            st.write(f"- p-value: {p_val:.3g}")
+        g1 = df[df[group_col] == groups[0]][val_col].dropna()
+        g2 = df[df[group_col] == groups[1]][val_col].dropna()
 
-            if p_val < 0.05:
-                st.success("Différence significative !")
-            else:
-                st.info("Pas de différence significative.")
+        t_stat, p_val = stats.ttest_ind(g1, g2)
+        st.metric("p-value", f"{p_val:.4g}")
 
-            p = (
-                ggplot(df, aes(x=group_col, y=val_col, fill=group_col))
-                + geom_boxplot(alpha=0.7)
-                + theme_minimal()
-                + labs(title=f"Boxplot : {val_col} par {group_col}")
-            )
-            st.pyplot(p.draw())
+        if p_val < 0.05:
+            st.success("Différence significative !")
+        else:
+            st.info("Pas de différence significative.")
 
-            return f"Test t ({val_col} ~ {group_col}) : p-value={p_val:.3g}"
-        return None
+        # Plot
+        p = (
+            ggplot(df, aes(x=group_col, y=val_col, fill=group_col))
+            + geom_boxplot(alpha=0.7)
+            + theme_minimal()
+            + labs(title=f"Boxplot : {val_col} par {group_col}")
+        )
+        st.pyplot(p.draw())
+
+        return f"Test t : {val_col} par {group_col}. p-value = {p_val:.4g}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         group_col = kwargs.get("group_col", "Group")
@@ -137,50 +134,46 @@ class ANOVAAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> Any:
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### ANOVA à un facteur")
 
         num_cols = df.select_dtypes(include="number").columns
-        cat_cols = [
-            c
-            for c in df.select_dtypes(include=["object", "category"]).columns
-            if df[c].nunique() > 2
+        cat_cols = df.select_dtypes(include=["object", "category"]).columns
+
+        c1, c2 = st.columns(2)
+        group_col = c1.selectbox(
+            "Variable de Groupe (>2 niveaux)", cat_cols, key="anova_grp"
+        )
+        val_col = c2.selectbox("Variable Numérique", num_cols, key="anova_val")
+
+        if not group_col or not val_col:
+            return None, None
+
+        groups = [
+            df[df[group_col] == g][val_col].dropna() for g in df[group_col].unique()
         ]
+        f_stat, p_val = stats.f_oneway(*groups)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            group_col = st.selectbox(
-                "Variable de groupe (>2 niveaux)", cat_cols, key="anova_grp"
-            )
-        with col2:
-            val_col = st.selectbox("Variable numérique", num_cols, key="anova_val")
+        st.metric("p-value", f"{p_val:.4g}")
 
-        if group_col and val_col:
-            groups = [
-                df[df[group_col] == g][val_col].dropna() for g in df[group_col].unique()
-            ]
-            f_stat, p_val = stats.f_oneway(*groups)
+        if p_val < 0.05:
+            st.success("Différence significative entre les groupes !")
+        else:
+            st.info("Pas de différence significative.")
 
-            st.write(f"Comparaison de **{val_col}** par **{group_col}**")
-            st.write(f"- F-statistic: {f_stat:.3f}")
-            st.write(f"- p-value: {p_val:.3g}")
+        # Plot
+        p = (
+            ggplot(df, aes(x=group_col, y=val_col, fill=group_col))
+            + geom_boxplot(alpha=0.7)
+            + theme_minimal()
+            + labs(title=f"Boxplot : {val_col} par {group_col}")
+            + theme(axis_text_x=element_text(rotation=45, hjust=1))
+        )
+        st.pyplot(p.draw())
 
-            if p_val < 0.05:
-                st.success("Différence significative entre les groupes !")
-            else:
-                st.info("Pas de différence significative.")
-
-            p = (
-                ggplot(df, aes(x=group_col, y=val_col, fill=group_col))
-                + geom_boxplot(alpha=0.7)
-                + theme_minimal()
-                + labs(title=f"Boxplot : {val_col} par {group_col}")
-                + theme(axis_text_x=element_text(rotation=45, hjust=1))
-            )
-            st.pyplot(p.draw())
-
-            return f"ANOVA ({val_col} ~ {group_col}) : p-value={p_val:.3g}"
-        return None
+        return f"ANOVA : {val_col} par {group_col}. p-value = {p_val:.4g}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         group_col = kwargs.get("group_col", "Group")
@@ -230,43 +223,42 @@ class ChiSquareAnalysis(BaseAnalysis):
     def run(self, df: pd.DataFrame) -> Any:
         return None
 
-    def render_streamlit(self, df: pd.DataFrame, result: Any) -> Optional[str]:
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
         st.write("### Test du Chi-carré")
 
         cat_cols = df.select_dtypes(include=["object", "category"]).columns
 
-        col1, col2 = st.columns(2)
-        with col1:
-            var1 = st.selectbox("Variable 1", cat_cols, key="chi2_v1")
-        with col2:
-            var2 = st.selectbox(
-                "Variable 2", [c for c in cat_cols if c != var1], key="chi2_v2"
-            )
+        c1, c2 = st.columns(2)
+        var1 = c1.selectbox("Variable 1", cat_cols, key="chi2_v1")
+        var2 = c2.selectbox(
+            "Variable 2", [c for c in cat_cols if c != var1], key="chi2_v2"
+        )
 
-        if var1 and var2:
-            contingency_table = pd.crosstab(df[var1], df[var2])
-            chi2, p_val, dof, expected = stats.chi2_contingency(contingency_table)
+        if not var1 or not var2:
+            return None, None
 
-            st.write(f"Association entre **{var1}** et **{var2}**")
-            st.write(f"- Chi2: {chi2:.3f}")
-            st.write(f"- p-value: {p_val:.3g}")
+        contingency_table = pd.crosstab(df[var1], df[var2])
+        chi2, p_val, dof, expected = stats.chi2_contingency(contingency_table)
 
-            if p_val < 0.05:
-                st.success("Association significative !")
-            else:
-                st.info("Pas d'association significative.")
+        st.metric("p-value", f"{p_val:.4g}")
 
-            # Plot bar chart
-            p = (
-                ggplot(df, aes(x=var1, fill=var2))
-                + geom_bar(position="fill")
-                + theme_minimal()
-                + labs(title=f"Distribution de {var2} par {var1}", y="Proportion")
-            )
-            st.pyplot(p.draw())
+        if p_val < 0.05:
+            st.success("Dépendance significative !")
+        else:
+            st.info("Indépendance (pas de lien significatif).")
 
-            return f"Chi-carré ({var1} vs {var2}) : p-value={p_val:.3g}"
-        return None
+        # Plot
+        p = (
+            ggplot(df, aes(x=var1, fill=var2))
+            + geom_bar(position="fill")
+            + theme_minimal()
+            + labs(title=f"Distribution de {var2} par {var1}", y="Proportion")
+        )
+        st.pyplot(p.draw())
+
+        return f"Chi-carré : {var1} vs {var2}. p-value = {p_val:.4g}.", p
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         var1 = kwargs.get("var1", "Variable1")

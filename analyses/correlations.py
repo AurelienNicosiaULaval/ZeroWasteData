@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from itertools import combinations
-from typing import Optional
+from typing import Optional, Any
 import pandas as pd
 import streamlit as st
 from plotnine import (
@@ -21,6 +21,7 @@ from scipy.stats import pearsonr
 from .base import BaseAnalysis
 
 
+@st.cache_data
 def pearson_correlations(df: pd.DataFrame, threshold: float = 0.05) -> pd.DataFrame:
     """Calcule les corrélations de Pearson significatives entre paires de colonnes."""
     numeric_df = df.select_dtypes(include="number").dropna()
@@ -66,6 +67,12 @@ class CorrelationAnalysis(BaseAnalysis):
 
         # Heatmap
         numeric_df = df.select_dtypes(include="number").dropna()
+
+        # Downsample if too large for correlation matrix calculation?
+        # Actually corr() is fast, but plotting might be slow if many variables.
+        # But usually we don't have that many columns.
+        # Let's keep it as is for now, corr matrix is small (N_cols x N_cols).
+
         corr_matrix = numeric_df.corr().reset_index()
         corr_melted = corr_matrix.melt(
             id_vars="index", var_name="variable", value_name="correlation"
@@ -75,7 +82,7 @@ class CorrelationAnalysis(BaseAnalysis):
             ggplot(corr_melted, aes(x="index", y="variable", fill="correlation"))
             + geom_tile(color="white")
             + scale_fill_gradient2(
-                low="blue", mid="white", high="red", midpoint=0, limit=(-1, 1)
+                low="blue", mid="white", high="red", midpoint=0, limits=(-1, 1)
             )
             + geom_text(aes(label="correlation"), format_string="{:.2f}", size=8)
             + theme_minimal()
@@ -109,7 +116,7 @@ corr_melted = corr_matrix.melt(id_vars='index', var_name='variable', value_name=
 
 p = (ggplot(corr_melted, aes(x='index', y='variable', fill='correlation'))
      + geom_tile(color="white")
-     + scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limit=(-1, 1))
+     + scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limits=(-1, 1))
      + geom_text(aes(label='correlation'), format_string='{{:.2f}}', size=8)
      + theme_minimal()
      + labs(title="Matrice de Corrélation", x="", y="")
@@ -134,7 +141,7 @@ corr_melted <- melt(corr_matrix)
 # Graphique
 ggplot(corr_melted, aes(x = Var1, y = Var2, fill = value)) +
   geom_tile(color = "white") +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, limit = c(-1, 1)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, limits = c(-1, 1)) +
   geom_text(aes(label = round(value, 2)), size = 3) +
   theme_minimal() +
   labs(title = "Matrice de Corrélation", x = "", y = "") +

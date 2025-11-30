@@ -24,7 +24,6 @@ from utils.scoring import (
     calculate_zero_waste_score,
     calculate_eco_impact,
 )
-from analyses.manager import AnalysisManager
 
 
 @st.cache_data

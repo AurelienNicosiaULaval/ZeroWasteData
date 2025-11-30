@@ -14,6 +14,16 @@ from plotnine import (
 from .base import BaseAnalysis
 
 
+@st.cache_data
+def fit_logistic_regression(df: pd.DataFrame, target_col: str, feature_col: str) -> Any:
+    data = df[[target_col, feature_col]].dropna()
+    y = data[target_col]
+    if y.dtype == "object" or y.dtype.name == "category":
+        y = pd.Categorical(y).codes
+    x = sm.add_constant(data[feature_col])
+    return sm.Logit(y, x).fit(disp=0)
+
+
 class LogisticRegressionAnalysis(BaseAnalysis):
     @property
     def name(self) -> str:
@@ -55,22 +65,25 @@ class LogisticRegressionAnalysis(BaseAnalysis):
         if not target_col or not feature_col:
             return None, None
 
-        # Run
-        data = df[[target_col, feature_col]].dropna()
-        y = data[target_col]
-        # Encode y if needed
-        if y.dtype == "object" or y.dtype.name == "category":
-            y = pd.Categorical(y).codes
-
-        x = sm.add_constant(data[feature_col])
-
         try:
-            model = sm.Logit(y, x).fit(disp=0)
+            model = fit_logistic_regression(df, target_col, feature_col)
             st.write(model.summary())
 
             # Plot
+            data = df[[target_col, feature_col]].dropna()
+            y = data[target_col]
+            if y.dtype == "object" or y.dtype.name == "category":
+                y = pd.Categorical(y).codes
+
             plot_data = data.copy()
             plot_data["y_encoded"] = y
+
+            # Downsample for plotting if too large
+            if len(plot_data) > 5000:
+                plot_data = plot_data.sample(5000, random_state=42)
+                st.caption(
+                    "⚠️ Données échantillonnées (5000 points) pour accélérer l'affichage."
+                )
 
             p = (
                 ggplot(plot_data, aes(x=feature_col, y="y_encoded"))
@@ -86,12 +99,14 @@ class LogisticRegressionAnalysis(BaseAnalysis):
             )
             st.pyplot(p.draw())
 
-            return f"Régression Logistique ({target_col} ~ {feature_col}) : Pseudo R2={model.prsquared:.3f}"
+            return (
+                f"Régression Logistique ({target_col} ~ {feature_col}) : Pseudo R2={model.prsquared:.3f}",
+                p,
+            )
 
         except Exception as e:
             st.error(f"Erreur lors de l'ajustement du modèle : {e}")
-            return None
-        return None
+            return None, None
 
     def generate_code(self, df_name: str = "df", **kwargs) -> str:
         target_col = kwargs.get("target_col", "Target")
@@ -246,4 +261,25 @@ p = (ggplot(plot_data, aes(x=date_col, y=val_col))
      + labs(title=f"Évolution de {{val_col}} dans le temps", x="Date")
 )
 print(p)
+"""
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        date_col = kwargs.get("date_col", "Date")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# Analyse de Séries Temporelles (R)
+library(ggplot2)
+library(lubridate)
+
+date_col <- "{date_col}"
+val_col <- "{val_col}"
+
+# Conversion en date (si nécessaire)
+# {df_name}[[date_col]] <- ymd({df_name}[[date_col]])
+
+# Graphique
+ggplot({df_name}, aes_string(x = date_col, y = val_col)) +
+  geom_line(color = "steelblue") +
+  theme_minimal() +
+  labs(title = paste("Évolution de", val_col, "dans le temps"), x = "Date")
 """

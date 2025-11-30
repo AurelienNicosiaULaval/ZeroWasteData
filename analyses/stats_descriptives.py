@@ -202,3 +202,18 @@ p = (ggplot({df_name}, aes(x=col_to_plot))
     )
 print(p)
 """
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        col = kwargs.get("col", "variable_name")
+        return f"""
+# Distribution des données (R)
+library(ggplot2)
+
+# Remplacer '{col}' par le nom de votre colonne
+col_to_plot <- "{col}"
+
+ggplot({df_name}, aes_string(x = col_to_plot)) +
+  geom_histogram(fill = "steelblue", color = "white", bins = 30, alpha = 0.7) +
+  theme_minimal() +
+  labs(title = paste("Distribution de", col_to_plot), x = col_to_plot, y = "Fréquence")
+"""

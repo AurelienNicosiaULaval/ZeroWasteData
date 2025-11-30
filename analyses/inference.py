@@ -110,6 +110,27 @@ p = (ggplot({df_name}, aes(x=group_col, y=val_col, fill=group_col))
 print(p)
 """
 
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        group_col = kwargs.get("group_col", "Group")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# Test t de Student (R)
+library(ggplot2)
+
+group_col <- "{group_col}"
+val_col <- "{val_col}"
+
+# Test t
+t_test <- t.test(as.formula(paste(val_col, "~", group_col)), data = {df_name})
+print(t_test)
+
+# Graphique
+ggplot({df_name}, aes_string(x = group_col, y = val_col, fill = group_col)) +
+  geom_boxplot(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = paste("Boxplot :", val_col, "par", group_col))
+"""
+
 
 class ANOVAAnalysis(BaseAnalysis):
     @property
@@ -202,6 +223,28 @@ p = (ggplot({df_name}, aes(x=group_col, y=val_col, fill=group_col))
 print(p)
 """
 
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        group_col = kwargs.get("group_col", "Group")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# ANOVA à un facteur (R)
+library(ggplot2)
+
+group_col <- "{group_col}"
+val_col <- "{val_col}"
+
+# ANOVA
+anova_res <- aov(as.formula(paste(val_col, "~", group_col)), data = {df_name})
+summary(anova_res)
+
+# Graphique
+ggplot({df_name}, aes_string(x = group_col, y = val_col, fill = group_col)) +
+  geom_boxplot(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = paste("Boxplot :", val_col, "par", group_col)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+"""
+
 
 class ChiSquareAnalysis(BaseAnalysis):
     @property
@@ -286,4 +329,26 @@ p = (ggplot({df_name}, aes(x=var1, fill=var2))
      + labs(title=f"Distribution de {{var2}} par {{var1}}", y="Proportion")
 )
 print(p)
+"""
+
+    def generate_r_code(self, df_name: str = "df", **kwargs) -> str:
+        var1 = kwargs.get("var1", "Variable1")
+        var2 = kwargs.get("var2", "Variable2")
+        return f"""
+# Test du Chi-carré (R)
+library(ggplot2)
+
+var1 <- "{var1}"
+var2 <- "{var2}"
+
+# Table de contingence et Test
+tbl <- table({df_name}[[var1]], {df_name}[[var2]])
+chisq_res <- chisq.test(tbl)
+print(chisq_res)
+
+# Graphique
+ggplot({df_name}, aes_string(x = var1, fill = var2)) +
+  geom_bar(position = "fill") +
+  theme_minimal() +
+  labs(title = paste("Distribution de", var2, "par", var1), y = "Proportion")
 """

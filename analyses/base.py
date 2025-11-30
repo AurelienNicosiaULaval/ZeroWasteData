@@ -55,4 +55,8 @@ class BaseAnalysis(ABC):
         pass
 
     @abstractmethod
+    def render_streamlit(
+        self, df: pd.DataFrame, result: Any
+    ) -> tuple[Optional[str], Optional[Any]]:
+        """Affiche les résultats dans Streamlit et retourne le texte du rapport et le graphique (si applicable)."""
         pass

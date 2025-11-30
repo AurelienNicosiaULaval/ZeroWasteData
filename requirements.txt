@@ -2,12 +2,14 @@ streamlit
 pandas
 numpy
 scipy
-statsmodels
 scikit-learn
 jinja2
 markdown
-matplotlib
+fpdf
+statsmodels
 seaborn
+matplotlib
+plotnine
 pytest
 openpyxl>=3.1
 fpdf2

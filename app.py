@@ -1,150 +1,227 @@
 """Application Streamlit pour l'exploration automatique des données."""
-from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Dict, List
+from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
-from analyses.correlations import pearson_correlations
-from analyses.regressions import simple_linear_regression
-from analyses.stats_descriptives import detect_outliers_iqr
-from analyses.clustering import kmeans_clustering
+from analyses.manager import AnalysisManager
+from analyses.stats_descriptives import OutlierAnalysis, DistributionAnalysis
+from analyses.correlations import CorrelationAnalysis
+from analyses.regressions import SimpleLinearRegressionAnalysis
+from analyses.multivariate import PCAAnalysis
+from analyses.inference import TTestAnalysis, ANOVAAnalysis, ChiSquareAnalysis
+from analyses.advanced import LogisticRegressionAnalysis, TimeSeriesAnalysis
 from utils.report import generate_report, generate_pdf_report
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-CSV_ANALYSES = DATA_DIR / "table_analyses.csv"
-JSON_ANALYSES = DATA_DIR / "table_analyses.json"
 
-
-@st.cache_data
-def load_analyses_map() -> List[Dict[str, str]]:
-    """Charge la table des analyses depuis le JSON ou le CSV."""
-    if JSON_ANALYSES.exists():
-        with JSON_ANALYSES.open("r", encoding="utf-8") as f:
-            return json.load(f)
-    df = pd.read_csv(CSV_ANALYSES)
-    records = []
-    for row in df.to_dict(orient="records"):
-        records.append(
-            {
-                "category": row["Catégorie"],
-                "analysis": row["Type d'analyse"],
-                "condition": row["Condition automatique à tester"],
-                "result": row["Résultat d'intérêt potentiel à signaler"],
-            }
-        )
-    with JSON_ANALYSES.open("w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
-    return records
+def load_data(file) -> pd.DataFrame:
+    if file.name.endswith(".csv"):
+        return pd.read_csv(file)
+    else:
+        return pd.read_excel(file)
 
 
 def main() -> None:
-    st.set_page_config(page_title="Données zéro déchet", layout="wide")
-    st.title("♻️ Données zéro déchet")
+    st.set_page_config(page_title="Données zéro déchet", layout="wide", page_icon="♻️")
 
-    analyses_map = load_analyses_map()
-    analysis_names = [a["analysis"] for a in analyses_map]
+    # --- Sidebar ---
+    with st.sidebar:
+        st.title("♻️ ZeroWasteData")
+        st.markdown(
+            """
+            **Réutilisez vos données !**
 
-    uploaded_file = st.file_uploader("Uploader un fichier CSV ou Excel", type=["csv", "xlsx"])
+            Cette application vous aide à explorer de nouvelles perspectives
+            sur vos jeux de données existants.
+            """
+        )
+        uploaded_file = st.file_uploader("Importer un fichier", type=["csv", "xlsx"])
+
     if uploaded_file is None:
-        st.info("Veuillez sélectionner un fichier de données.")
+        st.info(
+            "👋 Bienvenue ! Veuillez importer un fichier CSV ou Excel dans la barre latérale pour commencer."
+        )
         return
 
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
+    try:
+        df = load_data(uploaded_file)
+    except Exception as e:
+        st.error(f"Erreur lors du chargement du fichier : {e}")
+        return
 
-    st.subheader("Analyses déjà réalisées")
-    done = st.multiselect("Sélectionner les analyses déjà effectuées", analysis_names)
-    remaining = [a for a in analyses_map if a["analysis"] not in done]
+    # --- Sidebar: Column Selection ---
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Filtrage des colonnes")
+        all_columns = df.columns.tolist()
+        selected_columns = st.multiselect(
+            "Sélectionner les variables à conserver",
+            options=all_columns,
+            default=all_columns,
+            help="Désélectionnez les colonnes que vous ne souhaitez pas inclure dans les analyses.",
+        )
 
-    if st.button("Scanner"):
-        sections: Dict[str, str] = {}
+        if not selected_columns:
+            st.warning("Veuillez sélectionner au moins une colonne pour continuer.")
+            return
 
-        if any(a["analysis"] == "Valeurs aberrantes" for a in remaining):
-            st.write("### Valeurs aberrantes")
-            num_cols = df.select_dtypes(include="number").columns
-            st.write(
-                "Recherche des valeurs aberrantes dans les colonnes numériques : "
-                + ", ".join(num_cols)
+        df = df[selected_columns]
+
+    # --- Analysis Manager Setup ---
+    manager = AnalysisManager()
+    # Descriptive
+    manager.register_analysis(OutlierAnalysis)
+    manager.register_analysis(DistributionAnalysis)
+    # Correlation
+    manager.register_analysis(CorrelationAnalysis)
+    # Inference
+    manager.register_analysis(TTestAnalysis)
+    manager.register_analysis(ANOVAAnalysis)
+    manager.register_analysis(ChiSquareAnalysis)
+    # Predictive
+    manager.register_analysis(SimpleLinearRegressionAnalysis)
+    manager.register_analysis(LogisticRegressionAnalysis)
+    # Advanced
+    manager.register_analysis(PCAAnalysis)
+    manager.register_analysis(TimeSeriesAnalysis)
+
+    applicable_analyses = manager.get_applicable_analyses(df)
+    applicable_names = [a.name for a in applicable_analyses]
+
+    # --- Sidebar: Already Done ---
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Historique")
+        already_done = st.multiselect(
+            "Quelles analyses avez-vous déjà réalisées ?",
+            options=applicable_names,
+            help="Sélectionnez les analyses que vous avez déjà faites pour que nous puissions prioriser de nouvelles pistes.",
+        )
+
+    # Split analyses
+    suggested_analyses = [a for a in applicable_analyses if a.name not in already_done]
+    done_analyses = [a for a in applicable_analyses if a.name in already_done]
+
+    # --- Main Layout ---
+    st.title(f"Analyse de : {uploaded_file.name}")
+
+    # Tabs
+    tab_data, tab_suggestions, tab_report = st.tabs(
+        ["📊 Données", "💡 Suggestions d'Analyses", "📝 Rapport"]
+    )
+
+    with tab_data:
+        st.subheader("Aperçu des données")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Lignes", df.shape[0])
+        col2.metric("Colonnes", df.shape[1])
+        col3.metric(
+            "Variables numériques", len(df.select_dtypes(include="number").columns)
+        )
+
+        st.dataframe(df.head())
+
+        with st.expander("Informations détaillées"):
+            st.write(df.dtypes.astype(str).to_frame(name="Type"))
+            st.write("Valeurs manquantes :")
+            st.write(df.isnull().sum().to_frame(name="Count"))
+
+    with tab_suggestions:
+        st.subheader("Analyses suggérées")
+        st.markdown(
+            "Basé sur la structure de vos données et votre historique, voici ce que nous vous conseillons d'explorer :"
+        )
+
+        # Helper to render analyses list
+        def render_analyses_list(analyses_list, key_prefix):
+            categories = {}
+            for analysis in analyses_list:
+                cat = analysis.category
+                if cat not in categories:
+                    categories[cat] = []
+                categories[cat].append(analysis)
+
+            for cat, analyses in categories.items():
+                st.markdown(f"#### {cat}")
+                for analysis in analyses:
+                    with st.expander(f"📌 {analysis.name}"):
+                        st.markdown(f"_{analysis.description}_")
+
+                        # Run and Render
+                        try:
+                            result = analysis.run(df)
+                            report_content = analysis.render_streamlit(df, result)
+
+                            if report_content:
+                                if st.button(
+                                    f"Ajouter '{analysis.name}' au rapport",
+                                    key=f"{key_prefix}_btn_{analysis.name}",
+                                ):
+                                    st.session_state.report_sections[analysis.name] = (
+                                        report_content
+                                    )
+                                    st.success("Ajouté au rapport !")
+                        except Exception as e:
+                            st.error(
+                                f"Une erreur est survenue lors de l'exécution de cette analyse : {e}"
+                            )
+
+        # Initialize session state for report sections if not exists
+        if "report_sections" not in st.session_state:
+            st.session_state.report_sections = {}
+
+        if suggested_analyses:
+            render_analyses_list(suggested_analyses, "sugg")
+        else:
+            st.info(
+                "Vous avez exploré toutes les pistes suggérées pour ce jeu de données ! Bravo !"
             )
-            results: Dict[str, int] = {}
-            with st.expander("Voir les résultats"):
-                for col in num_cols:
-                    mask = detect_outliers_iqr(df, col)
-                    if mask.any():
-                        results[col] = int(mask.sum())
-                        st.write(f"{col}: {int(mask.sum())} outliers")
-                        import matplotlib.pyplot as plt
-                        plt.figure()
-                        df[col].plot.box()
-                        st.pyplot(plt.gcf())
-                if not results:
-                    st.write("Aucune valeur aberrante détectée.")
-            if results and st.checkbox("Inclure dans le rapport", key="outliers"):
-                sections["Valeurs aberrantes"] = "\n".join(
-                    f"- {k}: {v}" for k, v in results.items()
+
+        if done_analyses:
+            st.markdown("---")
+            with st.expander("✅ Analyses déjà réalisées (cliquer pour voir)"):
+                st.markdown(
+                    "Ces analyses sont masquées car vous avez indiqué les avoir déjà faites."
                 )
+                render_analyses_list(done_analyses, "done")
 
-        if any(a["analysis"] == "Corrélation linéaire (Pearson)" for a in remaining):
-            st.write("### Corrélations significatives")
-            num_cols = df.select_dtypes(include="number").columns
+    with tab_report:
+        st.subheader("Génération de rapport")
+
+        if st.session_state.report_sections:
             st.write(
-                "Analyse des corrélations linéaires entre : " + ", ".join(num_cols)
+                f"Sections incluses : {', '.join(st.session_state.report_sections.keys())}"
             )
-            corr_df = pearson_correlations(df)
-            with st.expander("Voir les résultats"):
-                if not corr_df.empty:
-                    st.dataframe(corr_df)
-                    import seaborn as sns
-                    import matplotlib.pyplot as plt
-                    plt.figure(figsize=(6, 4))
-                    sns.heatmap(
-                        df.select_dtypes(include="number").corr(),
-                        annot=True,
-                        cmap="viridis",
-                    )
-                    st.pyplot(plt.gcf())
-                else:
-                    st.write("Aucune corrélation significative détectée.")
-            if not corr_df.empty and st.checkbox("Inclure dans le rapport", key="corr"):
-                sections["Corrélations"] = corr_df.to_markdown(index=False)
 
-        if any(a["analysis"] == "Régression linéaire simple" for a in remaining):
-            st.write("### Régression linéaire simple")
-            num_cols = df.select_dtypes(include="number").columns
-            if len(num_cols) >= 2:
-                x_col, y_col = num_cols[:2]
-                st.write(f"Modélisation de {y_col} en fonction de {x_col}.")
-                pval, r2 = simple_linear_regression(df, x_col, y_col)
-                with st.expander("Voir les résultats"):
-                    st.write(
-                        f"Modèle {y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}"
-                    )
-                    import seaborn as sns
-                    import matplotlib.pyplot as plt
-                    plt.figure()
-                    sns.regplot(x=df[x_col], y=df[y_col])
-                    st.pyplot(plt.gcf())
-                if st.checkbox("Inclure dans le rapport", key="regression"):
-                    sections[
-                        "Régression"
-                    ] = f"{y_col} ~ {x_col} : p-value={pval:.3g}, R²={r2:.3f}"
-            else:
-                st.write("Pas assez de colonnes numériques pour effectuer une régression.")
+            if st.button("Vider le rapport"):
+                st.session_state.report_sections = {}
+                st.rerun()
 
-        if sections:
-            html = generate_report(sections)
+            html = generate_report(st.session_state.report_sections)
             st.download_button(
-                "Télécharger rapport HTML", data=html, file_name="rapport.html", mime="text/html"
+                "📥 Télécharger HTML",
+                data=html,
+                file_name="rapport_zerowaste.html",
+                mime="text/html",
             )
-            pdf = generate_pdf_report(sections)
+
+            pdf = generate_pdf_report(st.session_state.report_sections)
             st.download_button(
-                "Télécharger rapport PDF", data=pdf, file_name="rapport.pdf", mime="application/pdf"
+                "📥 Télécharger PDF",
+                data=pdf,
+                file_name="rapport_zerowaste.pdf",
+                mime="application/pdf",
+            )
+
+            st.markdown("---")
+            st.markdown("### Prévisualisation")
+            for title, content in st.session_state.report_sections.items():
+                st.markdown(f"#### {title}")
+                st.markdown(content)
+        else:
+            st.info(
+                "Aucune analyse n'a encore été ajoutée au rapport. Allez dans l'onglet 'Suggestions' et cliquez sur 'Ajouter au rapport' pour les analyses qui vous intéressent."
             )
 
 

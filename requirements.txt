@@ -12,4 +12,3 @@ matplotlib
 plotnine
 pytest
 openpyxl>=3.1
-fpdf2

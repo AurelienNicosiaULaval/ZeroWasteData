@@ -68,3 +68,41 @@ class PCAAnalysis(BaseAnalysis):
         st.pyplot(p.draw())
 
         return f"PCA réalisée sur {len(selected_cols)} variables. Variance expliquée cumulée (2 axes) : {sum(explained_variance):.1%}."
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        cols = kwargs.get("cols", ["col1", "col2", "col3"])
+        return f"""
+# Analyse en Composantes Principales (PCA)
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+from plotnine import ggplot, aes, geom_point, theme_minimal, labs
+
+# Sélection des variables
+selected_cols = {cols}
+data = {df_name}[selected_cols].dropna()
+
+# Standardisation
+scaler = StandardScaler()
+scaled_data = scaler.fit_transform(data)
+
+# PCA
+pca = PCA(n_components=2)
+components = pca.fit_transform(scaled_data)
+explained_variance = pca.explained_variance_ratio_
+
+print(f"Variance expliquée : PC1 ({{explained_variance[0]:.1%}}), PC2 ({{explained_variance[1]:.1%}})")
+
+# Graphique
+pca_df = pd.DataFrame(data=components, columns=['PC1', 'PC2'])
+p = (ggplot(pca_df, aes(x='PC1', y='PC2'))
+     + geom_point(alpha=0.7, color="purple")
+     + theme_minimal()
+     + labs(
+         title="Projection PCA",
+         x=f"PC1 ({{explained_variance[0]:.1%}})",
+         y=f"PC2 ({{explained_variance[1]:.1%}})"
+     )
+    )
+print(p)
+"""

@@ -79,6 +79,35 @@ class OutlierAnalysis(BaseAnalysis):
 
         return "\n".join(f"- {k}: {v} outliers" for k, v in result.items())
 
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        return f"""
+# Détection des valeurs aberrantes (Outliers)
+def detect_outliers_iqr(df, col):
+    q1 = df[col].quantile(0.25)
+    q3 = df[col].quantile(0.75)
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+    return (df[col] < lower_bound) | (df[col] > upper_bound)
+
+# Exemple pour une colonne numérique
+num_cols = {df_name}.select_dtypes(include="number").columns
+for col in num_cols:
+    outliers = detect_outliers_iqr({df_name}, col)
+    if outliers.any():
+        print(f"{{col}}: {{outliers.sum()}} outliers")
+        
+        # Visualisation
+        from plotnine import ggplot, aes, geom_boxplot, theme_minimal, labs, theme, element_text
+        p = (ggplot({df_name}, aes(x=0, y=col))
+             + geom_boxplot(fill="steelblue", alpha=0.7)
+             + theme_minimal()
+             + labs(title=f"Boxplot de {{col}}", x="", y=col)
+             + theme(axis_text_x=element_text(size=0))
+            )
+        print(p)
+"""
+
 
 class DistributionAnalysis(BaseAnalysis):
     @property
@@ -118,3 +147,20 @@ class DistributionAnalysis(BaseAnalysis):
         st.pyplot(p.draw())
 
         return f"Distribution analysée pour {col_to_plot}."
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        col = kwargs.get("col", "variable_name")
+        return f"""
+# Distribution des données
+from plotnine import ggplot, aes, geom_histogram, theme_minimal, labs
+
+# Remplacer '{col}' par le nom de votre colonne
+col_to_plot = '{col}'
+
+p = (ggplot({df_name}, aes(x=col_to_plot))
+     + geom_histogram(fill="steelblue", color="white", bins=30, alpha=0.7)
+     + theme_minimal()
+     + labs(title=f"Distribution de {{col_to_plot}}", x=col_to_plot, y="Fréquence")
+    )
+print(p)
+"""

@@ -101,6 +101,43 @@ class LogisticRegressionAnalysis(BaseAnalysis):
                 return None
         return None
 
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        target_col = kwargs.get("target_col", "Target")
+        feature_col = kwargs.get("feature_col", "Feature")
+        return f"""
+# Régression Logistique
+import statsmodels.api as sm
+import pandas as pd
+from plotnine import ggplot, aes, geom_point, geom_smooth, theme_minimal, labs
+
+target_col = '{target_col}'
+feature_col = '{feature_col}'
+
+# Préparation
+data = {df_name}[[target_col, feature_col]].dropna()
+y = data[target_col]
+# Encodage si nécessaire
+if y.dtype == 'object' or y.dtype.name == 'category':
+    y = pd.Categorical(y).codes
+x = sm.add_constant(data[feature_col])
+
+# Modèle
+model = sm.Logit(y, x).fit(disp=0)
+print(f"Pseudo R2: {{model.prsquared:.3f}}")
+
+# Graphique
+plot_data = data.copy()
+plot_data['y_encoded'] = y
+
+p = (ggplot(plot_data, aes(x=feature_col, y='y_encoded'))
+     + geom_point(alpha=0.5)
+     + geom_smooth(method="glm", method_args={{'family': 'binomial'}}, color="red")
+     + theme_minimal()
+     + labs(title=f"Régression Logistique : {{target_col}} vs {{feature_col}}", y="Probabilité")
+    )
+print(p)
+"""
+
 
 class TimeSeriesAnalysis(BaseAnalysis):
     @property
@@ -175,3 +212,27 @@ class TimeSeriesAnalysis(BaseAnalysis):
 
             return f"Série temporelle analysée pour {val_col}."
         return None
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        date_col = kwargs.get("date_col", "Date")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# Analyse de Séries Temporelles
+import pandas as pd
+from plotnine import ggplot, aes, geom_line, theme_minimal, labs
+
+date_col = '{date_col}'
+val_col = '{val_col}'
+
+# Conversion en date
+plot_data = {df_name}[[date_col, val_col]].copy().dropna()
+plot_data[date_col] = pd.to_datetime(plot_data[date_col])
+
+# Graphique
+p = (ggplot(plot_data, aes(x=date_col, y=val_col))
+     + geom_line(color="steelblue")
+     + theme_minimal()
+     + labs(title=f"Évolution de {{val_col}} dans le temps", x="Date")
+)
+print(p)
+"""

@@ -85,6 +85,34 @@ class TTestAnalysis(BaseAnalysis):
             return f"Test t ({val_col} ~ {group_col}) : p-value={p_val:.3g}"
         return None
 
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        group_col = kwargs.get("group_col", "Group")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# Test t de Student
+from scipy import stats
+from plotnine import ggplot, aes, geom_boxplot, theme_minimal, labs
+
+group_col = '{group_col}'
+val_col = '{val_col}'
+
+groups = {df_name}[group_col].unique()
+g1 = {df_name}[{df_name}[group_col] == groups[0]][val_col].dropna()
+g2 = {df_name}[{df_name}[group_col] == groups[1]][val_col].dropna()
+
+t_stat, p_val = stats.ttest_ind(g1, g2)
+print(f"t-statistic: {{t_stat:.3f}}")
+print(f"p-value: {{p_val:.3g}}")
+
+# Graphique
+p = (ggplot({df_name}, aes(x=group_col, y=val_col, fill=group_col))
+     + geom_boxplot(alpha=0.7)
+     + theme_minimal()
+     + labs(title=f"Boxplot : {{val_col}} par {{group_col}}")
+    )
+print(p)
+"""
+
 
 class ANOVAAnalysis(BaseAnalysis):
     @property
@@ -154,6 +182,33 @@ class ANOVAAnalysis(BaseAnalysis):
             return f"ANOVA ({val_col} ~ {group_col}) : p-value={p_val:.3g}"
         return None
 
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        group_col = kwargs.get("group_col", "Group")
+        val_col = kwargs.get("val_col", "Value")
+        return f"""
+# ANOVA à un facteur
+from scipy import stats
+from plotnine import ggplot, aes, geom_boxplot, theme_minimal, labs, theme, element_text
+
+group_col = '{group_col}'
+val_col = '{val_col}'
+
+groups = [{df_name}[{df_name}[group_col] == g][val_col].dropna() for g in {df_name}[group_col].unique()]
+f_stat, p_val = stats.f_oneway(*groups)
+
+print(f"F-statistic: {{f_stat:.3f}}")
+print(f"p-value: {{p_val:.3g}}")
+
+# Graphique
+p = (ggplot({df_name}, aes(x=group_col, y=val_col, fill=group_col))
+     + geom_boxplot(alpha=0.7)
+     + theme_minimal()
+     + labs(title=f"Boxplot : {{val_col}} par {{group_col}}")
+     + theme(axis_text_x=element_text(rotation=45, hjust=1))
+    )
+print(p)
+"""
+
 
 class ChiSquareAnalysis(BaseAnalysis):
     @property
@@ -212,3 +267,31 @@ class ChiSquareAnalysis(BaseAnalysis):
 
             return f"Chi-carré ({var1} vs {var2}) : p-value={p_val:.3g}"
         return None
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        var1 = kwargs.get("var1", "Variable1")
+        var2 = kwargs.get("var2", "Variable2")
+        return f"""
+# Test du Chi-carré
+from scipy import stats
+import pandas as pd
+from plotnine import ggplot, aes, geom_bar, theme_minimal, labs
+
+var1 = '{var1}'
+var2 = '{var2}'
+
+# Table de contingence
+contingency_table = pd.crosstab({df_name}[var1], {df_name}[var2])
+chi2, p_val, dof, expected = stats.chi2_contingency(contingency_table)
+
+print(f"Chi2: {{chi2:.3f}}")
+print(f"p-value: {{p_val:.3g}}")
+
+# Graphique
+p = (ggplot({df_name}, aes(x=var1, fill=var2))
+     + geom_bar(position="fill")
+     + theme_minimal()
+     + labs(title=f"Distribution de {{var2}} par {{var1}}", y="Proportion")
+)
+print(p)
+"""

@@ -84,3 +84,35 @@ class CorrelationAnalysis(BaseAnalysis):
             st.pyplot(p.draw())
 
         return result.to_markdown(index=False)
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        return f"""
+# Analyse de Corrélation
+from scipy.stats import pearsonr
+from itertools import combinations
+import pandas as pd
+from plotnine import ggplot, aes, geom_tile, scale_fill_gradient2, theme_minimal, labs, geom_text, theme, element_text
+
+# Calcul des corrélations
+numeric_df = {df_name}.select_dtypes(include="number").dropna()
+rows = []
+for col1, col2 in combinations(numeric_df.columns, 2):
+    corr, p = pearsonr(numeric_df[col1], numeric_df[col2])
+    if p < 0.05:
+        rows.append({{"var1": col1, "var2": col2, "corr": corr, "p_value": p}})
+print(pd.DataFrame(rows))
+
+# Matrice de corrélation (Heatmap)
+corr_matrix = numeric_df.corr().reset_index()
+corr_melted = corr_matrix.melt(id_vars='index', var_name='variable', value_name='correlation')
+
+p = (ggplot(corr_melted, aes(x='index', y='variable', fill='correlation'))
+     + geom_tile(color="white")
+     + scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limit=(-1, 1))
+     + geom_text(aes(label='correlation'), format_string='{{:.2f}}', size=8)
+     + theme_minimal()
+     + labs(title="Matrice de Corrélation", x="", y="")
+     + theme(axis_text_x=element_text(rotation=45, hjust=1))
+    )
+print(p)
+"""

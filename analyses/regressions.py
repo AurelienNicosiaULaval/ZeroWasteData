@@ -73,3 +73,34 @@ class SimpleLinearRegressionAnalysis(BaseAnalysis):
 
             return f"Régression {y_col} ~ {x_col} : R²={r2:.3f}, p-value={pval:.3g}"
         return None
+
+    def generate_code(self, df_name: str = "df", **kwargs) -> str:
+        x_col = kwargs.get("x_col", "X")
+        y_col = kwargs.get("y_col", "Y")
+        return f"""
+# Régression Linéaire Simple
+import statsmodels.api as sm
+from plotnine import ggplot, aes, geom_point, geom_smooth, theme_minimal, labs
+
+x_col = '{x_col}'
+y_col = '{y_col}'
+
+# Préparation des données
+data = {df_name}[[x_col, y_col]].dropna()
+X = sm.add_constant(data[x_col])
+y = data[y_col]
+
+# Modèle
+model = sm.OLS(y, X).fit()
+print(f"R²: {{model.rsquared:.3f}}")
+print(f"p-value: {{model.f_pvalue:.3g}}")
+
+# Graphique
+p = (ggplot(data, aes(x=x_col, y=y_col))
+     + geom_point(alpha=0.6)
+     + geom_smooth(method="lm", color="red")
+     + theme_minimal()
+     + labs(title=f"Régression : {{y_col}} vs {{x_col}}")
+    )
+print(p)
+"""
